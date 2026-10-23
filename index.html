@@ -22,9 +22,6 @@ button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:12px 8px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 h1{font:700 26px/1 var(--display);letter-spacing:.02em;text-transform:uppercase;margin:0}
-.sync{font-size:12px;color:var(--muted);white-space:nowrap}
-.sync b{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:6px}
-.sync.ok b{background:var(--good)}
 .tabs{display:flex;gap:4px;background:var(--surface2);padding:4px;border-radius:12px;margin-block:4px 16px}
 .tabs button{flex:1;border:0;background:transparent;padding:10px 8px;border-radius:9px;font-weight:600;color:var(--muted)}
 .tabs button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
@@ -127,7 +124,7 @@ details.prog[open] summary::before{content:"− "}
 </style>
 
 <div class="wrap">
-  <div class="top"><h1>Scheda Allenamento</h1><div class="sync" id="sync"><b></b><span>Solo su questo dispositivo</span></div></div>
+  <div class="top"><h1>Scheda Allenamento</h1></div>
   <div class="tabs" role="tablist" id="tabs">
     <button role="tab" data-tab="oggi" aria-selected="true">Allenamento</button>
     <button role="tab" data-tab="storico" aria-selected="false">Storico</button>
@@ -283,41 +280,33 @@ const DAY = Object.fromEntries(DAYS.map(d=>[d.id,d]));
 
 /* ---------- Stato e salvataggio ---------- */
 const LS_KEY='scheda-allenamento-v1';
-let S={sessions:[],current:null,updated:0};
-let tab='oggi', db=null, docRef=null, syncState='local';
+let S={sessions:[],current:null};
+let tab='oggi';
 const $=s=>document.querySelector(s);
 function lsGet(){try{return JSON.parse(localStorage.getItem(LS_KEY)||'null')}catch(e){return null}}
 function lsSet(){try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}}
-let saveT=null, writing=false, again=false;
-function touch(){S.updated=Date.now();lsSet();clearTimeout(saveT);saveT=setTimeout(flush,900)}
-async function flush(){
-  if(!docRef)return;
-  if(writing){again=true;return}
-  writing=true;
-  try{await docRef.set({sessions:S.sessions.slice(0,150),current:S.current,plan:S.plan||'3',updated:S.updated});setSync('db')}catch(e){setSync('local')}
-  writing=false;
-  if(again){again=false;flush()}
-}
-function setSync(s){syncState=s;const el=$('#sync');el.className='sync'+(s==='db'?' ok':'');el.querySelector('span').textContent=s==='db'?'Salvato nel tuo account':'Solo su questo dispositivo'}
-async function initDb(){
-  try{
-    const user=await claude.use('user'); const d=await claude.use('db');
-    if(!user||!d)return;
-    const uid=await user.id(); if(!uid)return;
-    docRef=d.collection('data/users/'+uid).doc('stato'); db=d;
-    const snap=await docRef.get();
-    if(snap.exists){
-      const r=snap.data();
-      if((r.updated||0)>(S.updated||0)){S={sessions:r.sessions||[],current:r.current||null,plan:r.plan||'3',updated:r.updated||0};lsSet();render()}
-      else if((r.updated||0)<(S.updated||0)) flush(); else setSync('db');
-    } else if(S.sessions.length||S.current) flush(); else setSync('db');
-  }catch(e){}
-}
+function touch(){lsSet()}
 
 /* ---------- Logica di progressione ---------- */
 const r05=x=>Math.round(x*2)/2;
 const fmtKg=x=>String(r05(x)).replace('.',',');
-function lastFor(id){for(const s of S.sessions){if(s.ex&&s.ex[id])return {date:s.date,sets:s.ex[id]}}return null}
+// Schema [serie, rip min, rip max] con cui l'esercizio è stato fatto in una seduta: salvato, oppure ricavato dal giorno.
+function schemeOf(s,id){
+  if(s.sc&&s.sc[id])return s.sc[id];
+  const d=DAY[s.day], e=d&&dayEntries(d).find(x=>x.it[0]===id);
+  return e?e.it.slice(1,4):null;
+}
+// Ultima seduta con lo stesso range di ripetizioni (es. panca 6-8 e 8-10 hanno carichi separati); altrimenti l'ultima in assoluto.
+function lastFor(id,inst){
+  let any=null;
+  for(const s of S.sessions){
+    if(!s.ex||!s.ex[id])continue;
+    const sc=schemeOf(s,id), L={date:s.date,sets:s.ex[id],sc};
+    if(!inst||(sc&&sc[1]===inst[2]&&sc[2]===inst[3]))return L;
+    if(!any)any=L;
+  }
+  return any;
+}
 function fmtSet(k,s){
   if(k==='time')return s.reps+'"';
   if(k==='min')return s.reps+' min';
@@ -325,9 +314,11 @@ function fmtSet(k,s){
   return fmtKg(s.kg)+'×'+s.reps;
 }
 function suggest(id,inst){
-  const e=EX[id], [ ,n,lo,hi]=inst, L=lastFor(id);
+  const e=EX[id], [ ,n,lo,hi]=inst, L=lastFor(id,inst);
   if(!L)return {t:'first',msg:'Prima volta: scegli un carico che lasci 1-2 ripetizioni di riserva.',kg:''};
-  const sets=L.sets, full=sets.length>=n&&sets.every(s=>s.reps>=hi), low=sets.some(s=>s.reps<lo);
+  // Obiettivo raggiunto o mancato si valuta sullo schema di quella seduta, non su quello di oggi.
+  const [pn,plo,phi]=L.sc||[n,lo,hi];
+  const sets=L.sets, full=sets.length>=pn&&sets.every(s=>s.reps>=phi), low=sets.some(s=>s.reps<plo);
   const top=Math.max(...sets.map(s=>s.kg||0));
   if(e.k==='time'){const m=Math.max(...sets.map(s=>s.reps));return full?{t:'up',msg:'Obiettivo raggiunto: prova '+(m+e.inc)+'" per serie.',kg:''}:{t:'hold',msg:'Punta a '+hi+'" su tutte le serie prima di allungare.',kg:''}}
   if(e.k==='min'){const m=Math.max(...sets.map(s=>s.reps));return full?{t:'up',msg:'Obiettivo raggiunto: prova '+(m+e.inc)+' min o aggiungi inclinazione.',kg:''}:{t:'hold',msg:'Completa '+lo+'-'+hi+' min prima di aumentare.',kg:''}}
@@ -355,12 +346,12 @@ function startDay(id){
 }
 function finish(){
   const c=S.current; if(!c)return;
-  const ex={};
+  const ex={}, sc={};
   Object.keys(c.sets).forEach(id=>{
     const d=c.sets[id].filter(s=>s.done&&+s.reps>0).map(s=>({kg:+String(s.kg).replace(',','.')||0,reps:+s.reps}));
-    if(d.length)ex[id]=d;
+    if(d.length){ex[id]=d;const s0=schemeOf({day:c.day},id);if(s0)sc[id]=s0}
   });
-  if(Object.keys(ex).length)S.sessions.unshift({id:'s'+c.t0,date:c.date,day:c.day,mins:Math.round((Date.now()-c.t0)/60000),ex});
+  if(Object.keys(ex).length)S.sessions.unshift({id:'s'+c.t0,date:c.date,day:c.day,mins:Math.round((Date.now()-c.t0)/60000),ex,sc});
   S.current=null; stopTimer(); touch(); tab='storico'; syncTabs(); render();
 }
 let wake=null;
@@ -370,10 +361,15 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.current
 /* ---------- Timer di recupero ---------- */
 let tEnd=0,tInt=null,actx=null;
 function beep(){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();[0,.25,.5].forEach(d=>{const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=880;g.gain.value=.15;o.connect(g);g.connect(actx.destination);o.start(actx.currentTime+d);o.stop(actx.currentTime+d+.15)})}catch(e){}try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}
+// La fine del recupero viene salvata nella sessione: se la pagina si ricarica o il telefono si blocca, il timer riprende dal punto giusto.
+function saveTimer(){if(S.current){S.current.tEnd=tEnd||0;touch()}}
+function showTimer(){
+  $('#timer').hidden=false; $('#timer').classList.remove('go'); $('#tlb').textContent='Recupero';
+  clearInterval(tInt); clearTimeout(tInt); tInt=setInterval(tick,250); tick();
+}
 function startTimer(sec){
   try{actx=actx||new (window.AudioContext||window.webkitAudioContext)()}catch(e){}
-  tEnd=Date.now()+sec*1000; $('#timer').hidden=false; $('#timer').classList.remove('go'); $('#tlb').textContent='Recupero';
-  clearInterval(tInt); tInt=setInterval(tick,250); tick();
+  tEnd=Date.now()+sec*1000; saveTimer(); showTimer();
 }
 function tick(){
   const left=Math.ceil((tEnd-Date.now())/1000);
@@ -381,8 +377,10 @@ function tick(){
   clearInterval(tInt); $('#timer').classList.add('go'); $('#tlb').textContent='Pronto'; $('#tm').textContent='Via!'; beep();
   tInt=setTimeout(stopTimer,4000);
 }
-function stopTimer(){clearInterval(tInt);clearTimeout(tInt);$('#timer').hidden=true}
-$('#t15').onclick=()=>{if(Date.now()>tEnd)startTimer(15);else{tEnd+=15000;tick()}};
+function stopTimer(){clearInterval(tInt);clearTimeout(tInt);$('#timer').hidden=true;tEnd=0;saveTimer()}
+$('#t15').onclick=()=>{if(Date.now()>tEnd)startTimer(15);else{tEnd+=15000;saveTimer();tick()}};
+// Al ritorno sull'app aggiorna subito il timer (in background il browser rallenta setInterval).
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&tEnd&&!$('#timer').hidden&&!$('#timer').classList.contains('go'))tick()});
 $('#tskip').onclick=stopTimer;
 
 /* ---------- Figure degli esercizi ---------- */
@@ -469,7 +467,7 @@ function pgHtml(id){
   return `<div class="pg"><p><span class="t">${g.name}</span>${g.rule}</p><p><span class="t">Per questo esercizio</span>${e.prog}</p><p class="warn"><span class="t">Avviso</span>${e.warn} ${GENERIC_WARN}</p></div>`;
 }
 function exHtml(entry,letter){
-  const [id,n,lo,hi,rest]=entry.it, e=EX[id], c=S.current, sets=c.sets[id], sg=suggest(id,entry.it), L=lastFor(id);
+  const [id,n,lo,hi,rest]=entry.it, e=EX[id], c=S.current, sets=c.sets[id], sg=suggest(id,entry.it), L=lastFor(id,entry.it);
   const un=unitOf(e.k), nokg=(e.k==='time'||e.k==='min');
   const scheme=(e.k==='min'?`${lo}-${hi} min`:`${n} × ${lo}-${hi}${e.k==='time'?'"':''}`)+(rest?` · rec ${fmtRest(rest)}`:'');
   const last=L?`<div class="hist">Ultima volta (${fmtDate(L.date)}): ${L.sets.map(s=>fmtSet(e.k,s)).join(' · ')}</div>`:'';
@@ -525,7 +523,7 @@ function spark(vals){
   return `<svg viewBox="0 0 96 28" role="img" aria-label="andamento"><polyline points="${pts.map(p=>p.map(x=>x.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${l[0].toFixed(1)}" cy="${l[1].toFixed(1)}" r="3" fill="var(--accent)"/></svg>`;
 }
 function backupHtml(){return `<div class="card gen"><h2>Backup dati</h2><p class="muted" style="margin:0 0 10px">Esporta lo storico per spostarlo su un altro dispositivo o su un'altra versione dell'app. Importa per unirlo a quello già presente: le sedute doppie vengono saltate.</p>
-  <div class="btnrow"><button class="btn small" data-act="exp">Esporta (copia)</button>${window.claude?'':'<button class="btn small" data-act="dl">Scarica file</button>'}<label class="btn small" style="display:inline-block">Importa da file<input type="file" accept=".json,application/json,text/plain" data-act="impfile" hidden></label></div>
+  <div class="btnrow"><button class="btn small" data-act="exp">Esporta (copia)</button><button class="btn small" data-act="dl">Scarica file</button><label class="btn small" style="display:inline-block">Importa da file<input type="file" accept=".json,application/json,text/plain" data-act="impfile" hidden></label></div>
   <textarea id="bk" rows="4" placeholder="Incolla qui un backup e premi Importa testo" style="width:100%;margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);padding:8px 10px;font:13px/1.35 ui-monospace,monospace"></textarea>
   <div class="btnrow" style="margin-top:8px"><button class="btn small primary" data-act="imp">Importa testo</button></div><div id="bkmsg" class="muted" style="font-size:14px;margin-top:6px" aria-live="polite"></div></div>`}
 const bkData=()=>JSON.stringify({app:'scheda-allenamento',v:1,plan:S.plan||'3',sessions:S.sessions});
@@ -637,6 +635,7 @@ $('#view').addEventListener('click',e=>{
 /* ---------- Avvio ---------- */
 (function(){const l=lsGet();if(l&&l.sessions)S=l})();
 render();
+if(S.current&&S.current.tEnd>Date.now()){tEnd=S.current.tEnd;showTimer()}
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
