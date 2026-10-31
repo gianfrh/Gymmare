@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap">
 <style>
-/* Layout: app a una colonna per il telefono in palestra. Tab in alto, sessione a schede, timer di recupero fisso in basso. */
+/* Layout: app a una colonna per il telefono in palestra. Tab in alto, sessione a schede, recupero indicato su ogni esercizio. */
 :root{
   --bg:#eceff2; --surface:#ffffff; --surface2:#e3e7ec; --fg:#12171c; --muted:#5b6672; --line:#d3d9e0;
   --accent:#2a56e0; --accent-fg:#ffffff; --good:#17794a; --good-bg:#dcf1e6; --warn:#9a5b00; --warn-bg:#fbeccc; --bad:#b3261e; --bad-bg:#f8dcda;
@@ -115,11 +115,6 @@ details.prog[open] summary::before{content:"− "}
 .prow svg{width:96px;height:28px;display:block}
 .prow .nm{min-width:0;overflow-wrap:anywhere}
 .empty{text-align:center;color:var(--muted);padding:28px 12px}
-#timer{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:var(--accent);color:var(--accent-fg);display:flex;align-items:center;gap:12px;justify-content:center}
-#timer .tm{font:700 34px var(--display);font-variant-numeric:tabular-nums;letter-spacing:.02em;min-width:80px}
-#timer .lb{font-size:13px;opacity:.85}
-#timer button{background:transparent;color:inherit;border:1px solid currentColor;border-radius:9px;padding:8px 12px;font-weight:600}
-#timer.go{background:var(--good);color:var(--surface)}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 </style>
 
@@ -132,7 +127,6 @@ details.prog[open] summary::before{content:"− "}
   </div>
   <main id="view"></main>
 </div>
-<div id="timer" hidden><div><div class="lb" id="tlb">Recupero</div><div class="tm" id="tm">0:00</div></div><button id="t15">+15"</button><button id="tskip">Salta</button></div>
 
 <script>
 /* ---------- Dati della scheda ---------- */
@@ -347,36 +341,12 @@ function finish(){
     if(d.length){ex[id]=d;const s0=schemeOf({day:c.day},id);if(s0)sc[id]=s0}
   });
   if(Object.keys(ex).length)S.sessions.unshift({id:'s'+c.t0,date:c.date,day:c.day,mins:Math.round((Date.now()-c.t0)/60000),ex,sc});
-  S.current=null; stopTimer(); touch(); tab='storico'; syncTabs(); render();
+  S.current=null; touch(); tab='storico'; syncTabs(); render();
 }
 let wake=null;
 async function askWake(){try{if(navigator.wakeLock&&!wake){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>{wake=null})}}catch(e){}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.current)askWake()});
 
-/* ---------- Timer di recupero ---------- */
-let tEnd=0,tInt=null,actx=null;
-function beep(){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();[0,.25,.5].forEach(d=>{const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=880;g.gain.value=.15;o.connect(g);g.connect(actx.destination);o.start(actx.currentTime+d);o.stop(actx.currentTime+d+.15)})}catch(e){}try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}
-// La fine del recupero viene salvata nella sessione: se la pagina si ricarica o il telefono si blocca, il timer riprende dal punto giusto.
-function saveTimer(){if(S.current){S.current.tEnd=tEnd||0;touch()}}
-function showTimer(){
-  $('#timer').hidden=false; $('#timer').classList.remove('go'); $('#tlb').textContent='Recupero';
-  clearInterval(tInt); clearTimeout(tInt); tInt=setInterval(tick,250); tick();
-}
-function startTimer(sec){
-  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)()}catch(e){}
-  tEnd=Date.now()+sec*1000; saveTimer(); showTimer();
-}
-function tick(){
-  const left=Math.ceil((tEnd-Date.now())/1000);
-  if(left>0){$('#tm').textContent=Math.floor(left/60)+':'+String(left%60).padStart(2,'0');return}
-  clearInterval(tInt); $('#timer').classList.add('go'); $('#tlb').textContent='Pronto'; $('#tm').textContent='Via!'; beep();
-  tInt=setTimeout(stopTimer,4000);
-}
-function stopTimer(){clearInterval(tInt);clearTimeout(tInt);$('#timer').hidden=true;tEnd=0;saveTimer()}
-$('#t15').onclick=()=>{if(Date.now()>tEnd)startTimer(15);else{tEnd+=15000;saveTimer();tick()}};
-// Al ritorno sull'app aggiorna subito il timer (in background il browser rallenta setInterval).
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&tEnd&&!$('#timer').hidden&&!$('#timer').classList.contains('go'))tick()});
-$('#tskip').onclick=stopTimer;
 
 /* ---------- Figure degli esercizi ---------- */
 // Omino stilizzato. Angoli in gradi, 0 = verso il basso, 90 = verso destra, 180 = verso l'alto.
@@ -464,7 +434,10 @@ function pgHtml(id){
 function exHtml(entry,letter){
   const [id,n,lo,hi,rest]=entry.it, e=EX[id], c=S.current, sets=c.sets[id], sg=suggest(id,entry.it), L=lastFor(id,entry.it);
   const un=unitOf(e.k), nokg=(e.k==='time'||e.k==='min');
-  const scheme=(e.k==='min'?`${lo}-${hi} min`:`${n} × ${lo}-${hi}${e.k==='time'?'"':''}`)+(rest?` · rec ${fmtRest(rest)}`:'');
+  // Nei superset la A non ha recupero: si passa subito alla B, che porta il recupero dell'intero giro.
+  const its=entry.b.items, ss=its.length>1, ultimo=entry.ii===its.length-1, nextL=String.fromCharCode(66+entry.ii);
+  const recTxt=ss&&!ultimo?` · <b>subito ${nextL}</b>`:rest?` · <b>rec ${fmtRest(rest)}</b>${ss?' poi di nuovo A':''}`:'';
+  const scheme=(e.k==='min'?`${lo}-${hi} min`:`${n} × ${lo}-${hi}${e.k==='time'?'"':''}`)+recTxt;
   const last=L?`<div class="hist">Ultima volta (${fmtDate(L.date)}): ${L.sets.map(s=>fmtSet(e.k,s)).join(' · ')}</div>`:'';
   const rows=sets.map((s,i)=>`<div class="set${nokg?' nokg':''}${s.done?' done':''}" data-ex="${id}" data-i="${i}">
     <div class="n">${i+1}</div>
@@ -567,7 +540,8 @@ function guideHtml(){
   <li>Alterna A e B. Se nella settimana dopo torni a 3 giorni, riparti dal Giorno 1 senza recuperare le sessioni saltate.</li>
   <li>Le progressioni funzionano allo stesso modo: l'app usa lo stesso storico per gli esercizi in comune tra le due schede.</li></ul></div>
   <div class="card gen"><h2>Come usare l'app</h2><ul>
-  <li>Premi "Inizia", compila kg e ripetizioni di ogni serie e tocca la spunta: parte il timer di recupero.</li>
+  <li>Premi "Inizia", compila kg e ripetizioni di ogni serie e tocca la spunta. Il recupero da fare è indicato accanto a serie e ripetizioni ("rec").</li>
+  <li>Nei superset fai A e subito B, poi recupera e ricomincia da A.</li>
   <li>Sotto ogni esercizio vedi la volta scorsa e un suggerimento: sali, resta o scendi.</li>
   <li>Alla fine premi "Termina e salva". Le serie non spuntate non vengono registrate.</li></ul></div></div>`;
 }
@@ -610,14 +584,13 @@ $('#view').addEventListener('click',e=>{
     const row=b.closest('.set'),id=row.dataset.ex,i=+row.dataset.i,s=S.current.sets[id][i];
     if(!s.done&&!(+s.reps>0)){row.querySelector('input[data-f="reps"]').focus();return}
     s.done=!s.done;row.classList.toggle('done',s.done);b.setAttribute('aria-pressed',s.done);
-    if(s.done){const it=dayEntries(DAY[S.current.day]).find(x=>x.it[0]===id).it;if(it[4]>0)startTimer(it[4]);
-      const nx=S.current.sets[id][i+1];if(nx&&nx.kg===''&&s.kg!==''){nx.kg=s.kg;const k=document.getElementById('kg-'+id+'-'+(i+1));if(k)k.value=s.kg}}
+    if(s.done){const nx=S.current.sets[id][i+1];if(nx&&nx.kg===''&&s.kg!==''){nx.kg=s.kg;const k=document.getElementById('kg-'+id+'-'+(i+1));if(k)k.value=s.kg}}
     updateProgress();touch();
   }
   else if(a==='add'){const id=b.closest('section').dataset.ex,arr=S.current.sets[id],l=arr[arr.length-1];arr.push({kg:l?l.kg:'',reps:'',done:false});touch();render()}
   else if(a==='finish'){finish()}
   else if(a==='cancel'){
-    if(b.dataset.arm){S.current=null;stopTimer();touch();render()}
+    if(b.dataset.arm){S.current=null;touch();render()}
     else{b.dataset.arm='1';b.textContent='Conferma: la sessione verrà eliminata'}
   }
   else if(a==='exp'){const t=bkData(),ta=$('#bk');ta.value=t;ta.focus();ta.select();
@@ -631,9 +604,8 @@ $('#view').addEventListener('click',e=>{
 });
 
 /* ---------- Avvio ---------- */
-(function(){const l=lsGet();if(l&&l.sessions)S=l})();
+(function(){const l=lsGet();if(l&&l.sessions)S=l;if(S.current)delete S.current.tEnd})();
 render();
-if(S.current&&S.current.tEnd>Date.now()){tEnd=S.current.tEnd;showTimer()}
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
