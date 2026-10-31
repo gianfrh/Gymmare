@@ -43,8 +43,12 @@ h3{font:700 20px/1.15 var(--display);letter-spacing:.01em;margin:0}
 .bar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden;margin-bottom:16px}
 .bar i{display:block;height:100%;background:var(--good);width:0;transition:width .25s}
 .sec{font:700 13px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:20px 0 8px}
-.warm label{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
-.warm label:last-child{border-bottom:0}
+.warm .wi{border-bottom:1px solid var(--line)}
+.warm .wi:last-child{border-bottom:0}
+.warm label{display:flex;gap:12px;align-items:center;padding:10px 0}
+.whow{margin:-4px 0 10px 34px;font-size:14px}
+.whow summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:13px}
+.whow p{margin:6px 0 0;color:var(--fg)}
 .warm input{width:22px;height:22px;accent-color:var(--accent);flex:none}
 .warm .rx{margin-left:auto;color:var(--muted);font-size:14px;text-align:right}
 .warm label.done span:first-of-type{text-decoration:line-through;color:var(--muted)}
@@ -97,6 +101,8 @@ details.prog summary::before{content:"+ "}
 details.prog[open] summary::before{content:"− "}
 .pg{margin-top:8px;font-size:14px;display:flex;flex-direction:column;gap:8px}
 .pg p{margin:0}
+.pg ol,.pg ul{margin:4px 0 0;padding-left:20px}
+.pg li{margin:3px 0}
 .pg .t{font:700 12px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:block}
 .pg .warn{background:var(--warn-bg);color:var(--fg);border-radius:8px;padding:8px 10px}
 .pg .warn .t{color:var(--warn)}
@@ -224,6 +230,105 @@ const EX = {
     warn:'Non aumentare durata e intensità nella stessa settimana. Se le gambe sono molto affaticate, resta sulla camminata.'}
 };
 
+/* Come si esegue: posizione di partenza, movimento passo per passo, respirazione, errori da evitare. */
+const HOW = {
+  bench:{pos:"Siediti sul bordo della panca con i manubri sulle cosce e sdraiati portandoli al petto con una spinta delle ginocchia. Piedi a terra, glutei e testa sulla panca, scapole strette e abbassate, leggero arco naturale della schiena.",
+    mov:["Parti a braccia tese sopra il petto, palmi in avanti o leggermente ruotati verso di te.","Scendi in 2-3 secondi con i gomiti a circa 45-60° dal busto (non a T), fino all'altezza del petto o finché senti un buon allungamento senza fastidio alla spalla.","Spingi verso l'alto e leggermente verso il centro, senza far sbattere i manubri.","Per finire, porta i manubri sulle cosce alzando le ginocchia: non lasciarli cadere di lato."],
+    resp:"Inspira mentre scendi, espira mentre spingi.",
+    err:["Gomiti aperti a 90°: caricano la spalla.","Scapole che si staccano dalla panca in alto.","Bacino che si alza per spingere di più.","Un manubrio che sale prima dell'altro."]},
+  pullup:{pos:"Regola l'assistenza e appoggia le ginocchia sulla pedana. Presa con i palmi in avanti poco più larga delle spalle (o presa neutra se c'è), braccia tese.",
+    mov:["Prima di piegare i gomiti porta le scapole in basso, lontane dalle orecchie.","Tira portando il petto verso la barra e i gomiti verso i fianchi, finché il mento supera la barra.","Scendi in 2-3 secondi fino a braccia quasi tese, senza lasciarti cadere."],
+    resp:"Espira mentre sali, inspira mentre scendi.",
+    err:["Slancio con gambe o busto.","Mezze ripetizioni: scendi fino in fondo.","Spalle che salgono verso le orecchie.","Collo allungato in avanti per arrivare con il mento."]},
+  pulley:{pos:"Seduto con i piedi sulla pedana e le ginocchia leggermente piegate. Busto dritto, petto alto, maniglia a braccia tese.",
+    mov:["Porta prima le spalle indietro e in basso.","Tira i gomiti verso i fianchi, vicini al busto, finché la maniglia arriva all'altezza dell'ombelico.","Tieni 1 secondo stringendo le scapole.","Torna a braccia tese lasciando scorrere le scapole in avanti, senza piegare la schiena."],
+    resp:"Espira mentre tiri, inspira mentre torni.",
+    err:["Dondolare il busto avanti e indietro.","Arrotondare la schiena in allungamento.","Tirare con polsi e bicipiti invece che con la schiena.","Spalle che salgono."]},
+  facepull:{pos:"Cavo all'altezza degli occhi o poco sopra, corda impugnata dall'alto. Fai un passo indietro, piedi alla larghezza delle spalle, braccia tese con la corda già in leggera tensione.",
+    mov:["Tira la corda verso il viso aprendo le mani ai lati, gomiti alti all'altezza delle spalle.","Finisci con le mani ai lati delle orecchie e le scapole strette, come se mostrassi i bicipiti.","Torna lentamente a braccia tese."],
+    resp:"Espira mentre tiri.",
+    err:["Inclinarsi indietro con il busto.","Gomiti bassi: diventa una remata.","Carico troppo alto per fare il movimento completo.","Spalle verso le orecchie."]},
+  ohext:{pos:"Corda attaccata in basso o a metà altezza. Dai le spalle al cavo, un piede avanti per stabilità, busto leggermente inclinato in avanti. Corda dietro la testa, gomiti piegati e vicini alla testa.",
+    mov:["Estendi i gomiti portando le mani in avanti e in alto fino a braccia tese; alla fine apri leggermente la corda.","Torna lentamente finché senti allungarsi il retro del braccio.","Per tutta la serie i gomiti restano fermi: si muovono solo gli avambracci."],
+    resp:"Espira mentre estendi.",
+    err:["Gomiti che si allargano.","Muovere le spalle per aiutarti.","Inarcare la zona lombare.","Movimento troppo corto in allungamento."]},
+  curl:{pos:"In piedi, piedi alla larghezza delle anche, ginocchia morbide. Presa con i palmi in avanti alla larghezza delle spalle, braccia tese, gomiti vicini ai fianchi, addome contratto.",
+    mov:["Piega i gomiti portando il bilanciere verso le spalle, senza spostare i gomiti in avanti.","Stringi 1 secondo in alto.","Scendi in 2-3 secondi fino a braccia quasi tese."],
+    resp:"Espira mentre sali, inspira mentre scendi.",
+    err:["Slancio con anche o schiena.","Gomiti che avanzano.","Polsi piegati all'indietro.","Discesa a peso morto."]},
+  pallof:{pos:"Cavo all'altezza del petto. Mettiti di fianco al cavo a circa un braccio di distanza, piedi alla larghezza delle spalle, ginocchia morbide. Maniglia al centro del petto con entrambe le mani, glutei e addome attivi.",
+    mov:["Spingi la maniglia dritta davanti al petto fino a braccia tese: il cavo prova a ruotarti, tu non ruoti.","Tieni fermo 1-2 secondi a braccia tese.","Riporta la maniglia al petto con controllo.","Fai tutte le ripetizioni da un lato, partendo dal debole, poi gira e cambia lato."],
+    resp:"Espira mentre spingi, inspira mentre torni.",
+    err:["Busto o bacino che ruotano verso il cavo.","Inclinarsi lontano dal cavo per compensare.","Spalle che si alzano.","Carico troppo alto: qui conta restare fermi."]},
+  hipthrust:{pos:"Parte alta della schiena, appena sotto le scapole, contro l'appoggio. Cuscinetto o cintura sulle anche, piedi alla larghezza delle anche e posizionati in modo che in alto le tibie siano verticali. Mento leggermente chiuso.",
+    mov:["Spingi con i talloni e solleva le anche finché busto e cosce sono in linea.","In alto contrai i glutei per 1 secondo tenendo le costole giù, senza inarcare la schiena.","Scendi controllato e riparti senza appoggiare del tutto il peso."],
+    resp:"Inspira e contrai l'addome prima di salire, espira in alto.",
+    err:["Inarcare la zona lombare in alto invece di contrarre i glutei.","Testa che va all'indietro.","Piedi troppo avanti (lavorano i femorali) o troppo vicini (lavorano i quadricipiti).","Ginocchia che cedono verso l'interno."]},
+  rdl:{pos:"In piedi, piedi alla larghezza delle anche, manubri davanti alle cosce. Ginocchia leggermente piegate, scapole basse, addome attivo.",
+    mov:["Porta le anche indietro, come per chiudere una porta con il sedere: il busto si inclina in avanti con la schiena dritta.","Tieni i manubri vicini alle gambe e scendi finché senti tirare i muscoli dietro la coscia, di solito poco sotto il ginocchio.","Risali spingendo le anche in avanti e contraendo i glutei, senza piegarti all'indietro in alto."],
+    resp:"Inspira e contrai l'addome prima di scendere, espira mentre risali.",
+    err:["Schiena che si arrotonda.","Ginocchia troppo piegate: diventa uno squat.","Manubri lontani dal corpo.","Sguardo in alto con il collo piegato all'indietro."]},
+  bulgarian:{pos:"Panca dietro di te, dorso del piede posteriore appoggiato sulla panca. Piede anteriore a circa un passo lungo dalla panca: in basso il ginocchio deve restare sopra il piede. Manubri lungo i fianchi.",
+    mov:["Scendi piegando il ginocchio anteriore, busto leggermente inclinato in avanti, finché il ginocchio posteriore arriva vicino a terra.","Risali spingendo con tutto il piede anteriore, tallone compreso.","Completa le ripetizioni con il lato debole, poi passa all'altro."],
+    resp:"Inspira mentre scendi, espira mentre sali.",
+    err:["Ginocchio anteriore che cade verso l'interno.","Spingere con la gamba dietro invece che con quella avanti.","Tallone anteriore che si alza.","Bacino che ruota o si abbassa da un lato."]},
+  latpd:{pos:"Seduto con le cosce bloccate sotto i rulli. Presa con i palmi in avanti poco più larga delle spalle, braccia tese, busto leggermente inclinato indietro, petto alto.",
+    mov:["Abbassa prima le scapole.","Porta la barra verso la parte alta del petto tirando i gomiti in basso e verso i fianchi.","Risali lentamente fino a braccia tese."],
+    resp:"Espira mentre tiri, inspira mentre risali.",
+    err:["Tirare la barra dietro la nuca.","Buttarsi indietro con il busto per completare la ripetizione.","Spalle verso le orecchie.","Tirare solo con le braccia."]},
+  incpress:{pos:"Panca inclinata a circa 30°. Schiena e testa appoggiate, scapole strette e abbassate, piedi a terra. Manubri sopra la parte alta del petto, braccia tese.",
+    mov:["Scendi in 2-3 secondi con i gomiti a 45-60° dal busto, fino all'altezza della parte alta del petto.","Spingi verso l'alto in linea sopra le spalle, senza far sbattere i manubri."],
+    resp:"Inspira mentre scendi, espira mentre spingi.",
+    err:["Panca troppo inclinata: lavorano soprattutto le spalle.","Gomiti aperti a 90°.","Schiena che si inarca.","Scapole che si staccano dalla panca."]},
+  oarow:{pos:"Mano e ginocchio dello stesso lato sulla panca, l'altro piede a terra un po' distante. Schiena piatta, spalle e anche squadrate verso il pavimento, manubrio sotto la spalla a braccio teso.",
+    mov:["Tira il manubrio verso l'anca, non verso l'ascella, con il gomito vicino al busto.","Tieni 1 secondo in alto stringendo la scapola.","Scendi lento fino a braccio teso, lasciando allungare la scapola.","Completa il lato debole, poi l'altro."],
+    resp:"Espira mentre tiri, inspira mentre scendi.",
+    err:["Ruotare il busto per sollevare più peso.","Tirare con il bicipite.","Schiena che si arrotonda.","Spalla che sale verso l'orecchio."]},
+  latraiseC:{pos:"Cavo in basso. Mettiti di fianco al cavo e prendi la maniglia con la mano più lontana, così che il cavo passi davanti al corpo. Busto leggermente inclinato, gomito appena piegato.",
+    mov:["Solleva il braccio di lato fino all'altezza della spalla, guidando con il gomito.","Scendi in 2-3 secondi senza far toccare i pesi tra una ripetizione e l'altra.","Completa un lato, poi l'altro."],
+    resp:"Espira mentre sali.",
+    err:["Spalla che sale verso l'orecchio.","Salire oltre l'altezza della spalla.","Usare lo slancio del busto.","Gomito troppo piegato."]},
+  sideplank:{pos:"Su un fianco, avambraccio a terra con il gomito sotto la spalla, gambe tese e piedi sovrapposti (oppure uno davanti all'altro per più stabilità). Versione più facile: ginocchia piegate a terra.",
+    mov:["Solleva il bacino finché il corpo è in linea dalla testa ai piedi.","Tieni la posizione spingendo il pavimento lontano con l'avambraccio.","A fine tempo scendi e cambia lato, partendo sempre dal debole."],
+    resp:"Respira normalmente, senza trattenere il fiato.",
+    err:["Bacino che cade o va indietro.","Spalla schiacciata verso l'orecchio.","Busto che ruota verso il pavimento."]},
+  frontsquat:{pos:"Bilanciere nel rack all'altezza del petto. Appoggialo sulla parte anteriore delle spalle vicino al collo, con le dita sotto la barra (bastano 2-3 dita) oppure a braccia incrociate. Gomiti alti e in avanti, piedi alla larghezza delle spalle, punte leggermente aperte. Regola le sicure del rack poco sotto la posizione più bassa.",
+    mov:["Inspira, contrai l'addome e scendi piegando insieme anche e ginocchia, con il busto il più verticale possibile.","Ginocchia in linea con le punte dei piedi; scendi almeno fino a cosce parallele se schiena e gomiti restano in posizione.","Risali spingendo con tutto il piede, con i gomiti che guidano verso l'alto."],
+    resp:"Inspira e trattieni l'aria contraendo l'addome mentre scendi; espira dopo aver superato il punto più duro della salita.",
+    err:["Gomiti che cadono: il bilanciere scivola in avanti.","Talloni che si alzano.","Ginocchia che vanno verso l'interno.","Schiena che si arrotonda in basso."]},
+  slrdl:{pos:"In piedi sulla gamba che lavora, ginocchio leggermente piegato, manubrio nella mano opposta. Se serve, appoggia l'altra mano a un supporto.",
+    mov:["Porta l'anca indietro e inclina il busto in avanti, mentre la gamba libera si allunga dietro in linea con il busto.","Scendi finché senti tirare dietro la coscia della gamba d'appoggio, con le anche parallele al pavimento.","Risali spingendo il piede nel pavimento e contraendo il gluteo.","Completa il lato debole, poi l'altro."],
+    resp:"Inspira mentre scendi, espira mentre risali.",
+    err:["Anca della gamba libera che si apre verso l'alto: il bacino ruota.","Schiena che si arrotonda.","Ginocchio d'appoggio troppo piegato.","Scendere più di quanto riesci a controllare."]},
+  legcurl:{pos:"Regola la macchina: ginocchio allineato al perno di rotazione e rullo appena sopra il tallone. Anche ben appoggiate, mani sulle maniglie, caviglie a 90°.",
+    mov:["Piega le ginocchia portando i talloni verso i glutei.","Stringi 1 secondo nella posizione di massima contrazione.","Torna in 2-3 secondi fino a gambe quasi tese, senza far sbattere il peso."],
+    resp:"Espira mentre pieghi, inspira mentre torni.",
+    err:["Anche che si sollevano dall'appoggio.","Movimento a scatti.","Ampiezza ridotta.","Punte dei piedi tese al massimo."]},
+  shpress:{pos:"Seduto su una panca con lo schienale quasi verticale (oppure in piedi, piedi alla larghezza delle anche e glutei contratti). Manubri all'altezza delle spalle, palmi in avanti o leggermente ruotati verso di te, gomiti un po' davanti al busto.",
+    mov:["Spingi i manubri verso l'alto fino a braccia quasi tese sopra la testa, senza farli sbattere.","Scendi in 2-3 secondi fino all'altezza delle orecchie."],
+    resp:"Espira mentre spingi, inspira mentre scendi.",
+    err:["Inarcare la zona lombare.","Gomiti troppo aperti e dietro il busto.","Testa che va in avanti.","Ampiezza ridotta."]},
+  revfly:{pos:"Panca inclinata a 30-45°, petto appoggiato, piedi a terra. Manubri sotto le spalle, palmi uno verso l'altro, gomiti leggermente piegati.",
+    mov:["Apri le braccia di lato fino all'altezza delle spalle, avvicinando le scapole.","Tieni 1 secondo.","Scendi lentamente."],
+    resp:"Espira mentre apri, inspira mentre scendi.",
+    err:["Staccare il petto dalla panca.","Piegare troppo i gomiti: diventa una remata.","Spalle verso le orecchie.","Usare lo slancio."]},
+  latraiseD:{pos:"In piedi, piedi alla larghezza delle anche, ginocchia morbide, manubri ai lati, busto leggermente inclinato in avanti, gomiti appena piegati.",
+    mov:["Solleva le braccia di lato fino all'altezza delle spalle, guidando con i gomiti.","In alto i polsi non devono superare i gomiti.","Scendi in 2-3 secondi."],
+    resp:"Espira mentre sali, inspira mentre scendi.",
+    err:["Slancio con il busto.","Spalle verso le orecchie.","Salire oltre l'altezza delle spalle.","Polsi più alti dei gomiti."]}
+};
+const WARM_HOW = {
+  "90/90 hip lift con respirazione":"Supino con i piedi sul muro, anche e ginocchia piegate a 90°, una palla o un asciugamano arrotolato tra le ginocchia. Premi i talloni verso il basso contro il muro (non spingere con la pianta) finché senti lavorare i muscoli dietro la coscia, e solleva appena il coccige: la zona lombare resta appoggiata, non è un ponte. Inspira dal naso, espira lentamente e fino in fondo dalla bocca (puoi soffiare in un palloncino), pausa di 3 secondi e ripeti.",
+  "Open book windmill":"Sdraiato su un fianco, anche e ginocchia piegate a 90°, braccia tese davanti a te. Tieni le ginocchia unite e ferme a terra (puoi bloccarle con la mano sotto o con un rullo). Apri il braccio sopra verso il lato opposto ruotando la parte alta della schiena, con lo sguardo che segue la mano, poi riportalo davanti con un arco sopra la testa. Espira mentre apri.",
+  "Band pull-apart":"In piedi, elastico davanti al petto a braccia tese, mani alla larghezza delle spalle. Apri le braccia finché l'elastico tocca il petto, stringendo le scapole senza alzare le spalle né inarcare la schiena. Torna lentamente.",
+  "Foam roller pullover":"Supino con il rullo messo di traverso sotto la parte alta della schiena, all'altezza delle scapole. Ginocchia piegate, glutei a terra, mani unite sopra il petto. Porta le braccia sopra la testa lasciando che la parte alta della schiena si apra sul rullo, tenendo le costole giù e la zona lombare ferma. Torna con le braccia sopra il petto. Espira mentre allunghi.",
+  "Corda":"Salti bassi sugli avampiedi, ginocchia morbide, gomiti vicini ai fianchi: la corda gira con i polsi, non con le braccia. Ritmo che ti permette di parlare.",
+  "Adductor rock-back":"In quadrupedia, allunga una gamba di lato con il ginocchio teso e il piede a terra, in linea con l'altro ginocchio. Con la schiena piatta porta il bacino indietro verso il tallone finché senti allungare l'interno della coscia, poi torna avanti. Movimento lento, senza arrotondare né inarcare la schiena.",
+  "Glute bridge con isometria 5\"":"Supino, ginocchia piegate, piedi a terra alla larghezza delle anche e vicini ai glutei. Spingi con i talloni e solleva il bacino finché ginocchia, anche e spalle sono in linea. Contrai i glutei e tieni 5 secondi senza inarcare la zona lombare (costole giù), poi scendi lentamente.",
+  "Half-kneeling thoracic rotation":"In ginocchio su un ginocchio, l'altra gamba avanti con il piede a terra e il ginocchio a 90°. Mani dietro la testa o braccia incrociate sul petto. Ruota la parte alta del busto verso il lato della gamba avanti tenendo il bacino fermo e rivolto in avanti, poi torna. Espira mentre ruoti.",
+  "Quadruped pec stretch":"In quadrupedia, porta un braccio teso di lato a 90° con il palmo a terra. Ruota il busto verso il lato opposto e abbassa la spalla verso il pavimento finché senti allungare il petto. Tieni respirando con calma, poi cambia lato. Se senti formicolio nel braccio, riduci l'ampiezza.",
+  "Tapis roulant":"Camminata veloce o con una leggera inclinazione. Aumenta gradualmente il ritmo: serve a scaldarti, non a stancarti."
+};
 // items: [id, serie, rip min, rip max, recupero in secondi]. Nei superset la A ha recupero 0.
 const DAYS = [
  {id:'d1', n:1, title:'Upper A', focus:'Petto, schiena, postura, braccia', time:'55-60 min',
@@ -431,6 +536,14 @@ function pgHtml(id){
   const e=EX[id],g=GROUPS[e.g];
   return `<div class="pg"><p><span class="t">${g.name}</span>${g.rule}</p><p><span class="t">Per questo esercizio</span>${e.prog}</p><p class="warn"><span class="t">Avviso</span>${e.warn} ${GENERIC_WARN}</p></div>`;
 }
+function howHtml(id){
+  const h=HOW[id];if(!h)return '';
+  return `<details class="prog"><summary>Come si esegue</summary><div class="pg">
+    <p><span class="t">Posizione di partenza</span>${h.pos}</p>
+    <div><span class="t">Movimento</span><ol>${h.mov.map(x=>`<li>${x}</li>`).join('')}</ol></div>
+    <p><span class="t">Respirazione</span>${h.resp}</p>
+    <div class="warn"><span class="t">Errori da evitare</span><ul>${h.err.map(x=>`<li>${x}</li>`).join('')}</ul></div></div></details>`;
+}
 function exHtml(entry,letter){
   const [id,n,lo,hi,rest]=entry.it, e=EX[id], c=S.current, sets=c.sets[id], sg=suggest(id,entry.it), L=lastFor(id,entry.it);
   const un=unitOf(e.k), nokg=(e.k==='time'||e.k==='min');
@@ -450,11 +563,12 @@ function exHtml(entry,letter){
     <div class="last">${last}<span class="pill ${sg.t}">${sg.msg}</span></div>
     <div class="sets">${rows}</div>
     ${e.k==='min'?'':'<button class="btn small addset" data-act="add">+ Serie</button>'}
+    ${howHtml(id)}
     <details class="prog"><summary>Progressione e avvisi</summary>${pgHtml(id)}</details></section>`;
 }
 function sessionHtml(){
   const c=S.current, day=DAY[c.day], entries=dayEntries(day);
-  const warm=day.warm.map((w,i)=>`<label class="${c.warm[i]?'done':''}"><input type="checkbox" data-act="warm" data-i="${i}" ${c.warm[i]?'checked':''}><span>${w[0]}</span><span class="rx">${w[1]}</span></label>`).join('');
+  const warm=day.warm.map((w,i)=>`<div class="wi"><label class="${c.warm[i]?'done':''}"><input type="checkbox" data-act="warm" data-i="${i}" ${c.warm[i]?'checked':''}><span>${w[0]}</span><span class="rx">${w[1]}</span></label>${WARM_HOW[w[0]]?`<details class="whow"><summary>Come si fa</summary><p>${WARM_HOW[w[0]]}</p></details>`:''}</div>`).join('');
   let body='';
   day.blocks.forEach((b,bi)=>{
     const ss=b.items.length>1;
@@ -542,6 +656,7 @@ function guideHtml(){
   <div class="card gen"><h2>Come usare l'app</h2><ul>
   <li>Premi "Inizia", compila kg e ripetizioni di ogni serie e tocca la spunta. Il recupero da fare è indicato accanto a serie e ripetizioni ("rec").</li>
   <li>Nei superset fai A e subito B, poi recupera e ricomincia da A.</li>
+  <li>Sotto ogni esercizio, "Come si esegue" spiega posizione, movimento, respirazione ed errori da evitare. Anche gli esercizi di riscaldamento hanno la loro spiegazione ("Come si fa").</li>
   <li>Sotto ogni esercizio vedi la volta scorsa e un suggerimento: sali, resta o scendi.</li>
   <li>Alla fine premi "Termina e salva". Le serie non spuntate non vengono registrate.</li></ul></div></div>`;
 }
