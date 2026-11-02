@@ -120,6 +120,40 @@ details.prog[open] summary::before{content:"− "}
 .prow .v{font-weight:600;font-variant-numeric:tabular-nums;text-align:right;min-width:64px}
 .prow svg{width:96px;height:28px;display:block}
 .prow .nm{min-width:0;overflow-wrap:anywhere}
+/* Report */
+.reminder{border-color:var(--accent)}
+.rtag{font:700 13px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.rnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rnav h2{margin:0;text-align:center;font-size:20px}
+.rnav .btn{min-width:44px;font-size:18px;line-height:1}
+.rnav .btn:disabled{opacity:.35}
+.rnote{margin:0 0 8px;font-size:13px}
+.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi div{background:var(--surface2);border-radius:10px;padding:10px 6px;text-align:center}
+.kpi b{display:block;font:700 22px var(--display);font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--muted)}
+.card .kpi+.wbars{margin-top:14px}
+.rlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.rlist li{display:flex;gap:10px;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:8px}
+.rlist li:last-child{border-bottom:0;padding-bottom:0}
+.rlist .nm{min-width:0}
+.rlist .val{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.rlist.block li{flex-direction:column;gap:2px}
+.tr{display:inline-block;width:1.1em;text-align:center;color:var(--muted)}
+.tr.up{color:var(--good)}
+.tr.down{color:var(--warn)}
+.gbar{display:grid;grid-template-columns:118px 1fr 34px;gap:8px;align-items:center;font-size:14px;margin:7px 0}
+.gbar .track{height:10px;border-radius:5px;background:var(--surface2);overflow:hidden}
+.gbar i{display:block;height:100%;border-radius:5px;background:var(--accent)}
+.gbar b{text-align:right;font-variant-numeric:tabular-nums}
+.wbars{display:flex;gap:8px;align-items:flex-end}
+.wbars div{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--muted)}
+.wbars b{color:var(--fg);font-variant-numeric:tabular-nums}
+.wbars i{display:block;width:100%;max-width:44px;border-radius:6px 6px 0 0;background:var(--accent)}
+.wbars .ok i{background:var(--good)}
+.peso{display:flex;gap:8px;align-items:center}
+.peso .fld{flex:1}
+.att{background:var(--warn-bg);border-radius:10px;padding:8px 10px;font-size:14px}
 .empty{text-align:center;color:var(--muted);padding:28px 12px}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 </style>
@@ -129,6 +163,7 @@ details.prog[open] summary::before{content:"− "}
   <div class="tabs" role="tablist" id="tabs">
     <button role="tab" data-tab="oggi" aria-selected="true">Allenamento</button>
     <button role="tab" data-tab="storico" aria-selected="false">Storico</button>
+    <button role="tab" data-tab="report" aria-selected="false">Report</button>
     <button role="tab" data-tab="guida" aria-selected="false">Guida</button>
   </div>
   <main id="view"></main>
@@ -594,7 +629,8 @@ function homeHtml(){
   const resume=S.current?`<div class="card day" style="border-color:var(--accent)"><div class="row"><div><div class="num">In corso</div><h2 style="margin:0">${DAY[S.current.day].title}</h2></div></div><button class="btn primary" data-act="resume">Riprendi allenamento</button></div>`:'';
   const pl=S.plan||'3';
   const seg=`<div class="tabs" role="tablist" style="margin:0"><button role="tab" data-act="plan" data-plan="3" aria-selected="${pl==='3'}">Settimana da 3 giorni</button><button role="tab" data-act="plan" data-plan="2" aria-selected="${pl==='2'}">Settimana da 2 giorni</button></div>${pl==='2'?'<p class="muted" style="margin:0;font-size:14px">Due sedute complete da massimo 1 ora, per le settimane in cui riesci ad allenarti solo due volte.</p>':''}`;
-  return `<div class="stack">${seg}${resume}${DAYS.filter(d=>d.plan===pl).map(d=>`<div class="card day"><div class="row"><div><div class="num">${d.tag} · ${d.time}</div><h2 style="margin:2px 0 0">${d.title}</h2><div class="muted" style="font-size:14px">${d.focus}</div></div></div>
+  const pesata=pesoSettimana(new Date())?'':`<div class="card reminder"><div class="rtag">Da fare questa settimana</div><h2 style="margin:2px 0 6px">Pesata settimanale</h2><p class="muted" style="margin:0 0 10px;font-size:14px">Pesati e registra il valore: serve all'andamento nel report mensile.</p><button class="btn small primary" data-act="goreport">Inserisci il peso</button></div>`;
+  return `<div class="stack">${seg}${resume}${pesata}${DAYS.filter(d=>d.plan===pl).map(d=>`<div class="card day"><div class="row"><div><div class="num">${d.tag} · ${d.time}</div><h2 style="margin:2px 0 0">${d.title}</h2><div class="muted" style="font-size:14px">${d.focus}</div></div></div>
     <button class="btn ${S.current?'':'primary'}" data-act="start" data-day="${d.id}">${S.current?'Inizia (sostituisce quello in corso)':'Inizia allenamento'}</button></div>`).join('')}</div>`;
 }
 function spark(vals){
@@ -608,7 +644,7 @@ function backupHtml(){return `<div class="card gen"><h2>Backup dati</h2><p class
   <div class="btnrow"><button class="btn small" data-act="exp">Esporta (copia)</button><button class="btn small" data-act="dl">Scarica file</button><label class="btn small" style="display:inline-block">Importa da file<input type="file" accept=".json,application/json,text/plain" data-act="impfile" hidden></label></div>
   <textarea id="bk" rows="4" placeholder="Incolla qui un backup e premi Importa testo" style="width:100%;margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);padding:8px 10px;font:13px/1.35 ui-monospace,monospace"></textarea>
   <div class="btnrow" style="margin-top:8px"><button class="btn small primary" data-act="imp">Importa testo</button></div><div id="bkmsg" class="muted" style="font-size:14px;margin-top:6px" aria-live="polite"></div></div>`}
-const bkData=()=>JSON.stringify({app:'scheda-allenamento',v:1,plan:S.plan||'3',sessions:S.sessions});
+const bkData=()=>JSON.stringify({app:'scheda-allenamento',v:1,plan:S.plan||'3',sessions:S.sessions,weights:S.weights||[]});
 function bkMsg(t){const m=$('#bkmsg');if(m)m.textContent=t}
 function doImport(txt){
   let d;try{d=JSON.parse(String(txt).trim())}catch(e){bkMsg('Testo non valido: assicurati di aver copiato tutto il backup.');return}
@@ -617,7 +653,11 @@ function doImport(txt){
   d.sessions.forEach(s=>{if(s&&s.id&&s.date&&s.ex&&!have.has(s.id)){S.sessions.push(s);have.add(s.id);n++}});
   S.sessions.sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
   if(d.plan&&!S.plan)S.plan=d.plan;
-  touch();render();bkMsg(n?(n===1?'Importata 1 seduta.':'Importate '+n+' sedute.'):'Nessuna seduta nuova: erano già tutte presenti.');
+  // Pesate: una per settimana; se la settimana ne ha già una, si tiene quella presente.
+  let np=0;
+  (Array.isArray(d.weights)?d.weights:[]).forEach(w=>{if(w&&w.date&&w.kg>0&&!pesoSettimana(new Date(w.date))){pesi().push({date:w.date,kg:+w.kg});np++}});
+  pesi().sort((x,y)=>x.date<y.date?1:x.date>y.date?-1:0);
+  touch();render();bkMsg((n?(n===1?'Importata 1 seduta.':'Importate '+n+' sedute.'):'Nessuna seduta nuova: erano già tutte presenti.')+(np?` Importate ${np} pesate.`:''));
 }
 let openDel=null;
 function historyHtml(){
@@ -656,13 +696,187 @@ function guideHtml(){
   <div class="card gen"><h2>Come usare l'app</h2><ul>
   <li>Premi "Inizia", compila kg e ripetizioni di ogni serie e tocca la spunta. Il recupero da fare è indicato accanto a serie e ripetizioni ("rec").</li>
   <li>Nei superset fai A e subito B, poi recupera e ricomincia da A.</li>
+  <li>Nella scheda Report trovi come è andata la settimana o il mese: sedute, progressi, serie per gruppo muscolare ed esercizi pronti a salire. Una volta a settimana registra lì il peso: finché manca, la schermata iniziale te lo ricorda.</li>
   <li>Sotto ogni esercizio, "Come si esegue" spiega posizione, movimento, respirazione ed errori da evitare. Anche gli esercizi di riscaldamento hanno la loro spiegazione ("Come si fa").</li>
   <li>Sotto ogni esercizio vedi la volta scorsa e un suggerimento: sali, resta o scendi.</li>
   <li>Alla fine premi "Termina e salva". Le serie non spuntate non vengono registrate.</li></ul></div></div>`;
 }
+/* ---------- Report settimanale e mensile ---------- */
+const MUSCOLI={bench:'Petto',incpress:'Petto',pullup:'Schiena',pulley:'Schiena',latpd:'Schiena',oarow:'Schiena',
+  facepull:'Spalle',latraiseC:'Spalle',latraiseD:'Spalle',shpress:'Spalle',revfly:'Spalle',ohext:'Braccia',curl:'Braccia',curlC:'Braccia',
+  hipthrust:'Gambe e glutei',rdl:'Gambe e glutei',bulgarian:'Gambe e glutei',frontsquat:'Gambe e glutei',slrdl:'Gambe e glutei',legcurl:'Gambe e glutei',
+  pallof:'Core',sideplank:'Core',plank:'Core',revcrunch:'Core',deadbug:'Core',cablecrunch:'Core'};
+const GRUPPI_M=['Gambe e glutei','Schiena','Petto','Spalle','Braccia','Core'];
+const ORDINE=[...new Set(DAYS.flatMap(d=>d.blocks.flatMap(b=>b.items.map(i=>i[0]))))];
+const ordina=ids=>ids.sort((a,b)=>(ORDINE.indexOf(a)+1||99)-(ORDINE.indexOf(b)+1||99));
+let rMode='w',rOff=0;
+// Pesate dalla più recente: il report usa quest'ordine, quindi lo garantisce a ogni lettura.
+const pesi=()=>(S.weights||(S.weights=[])).sort((x,y)=>x.date<y.date?1:x.date>y.date?-1:0);
+function lunedi(d){const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-(x.getDay()+6)%7);return x}
+const piuGiorni=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const fmtG=d=>d.toLocaleDateString('it-IT',{day:'numeric',month:'short'});
+const fmtPeso=x=>x.toFixed(1).replace('.',',');
+const fmtNum=x=>Number.isInteger(x)?String(x):x.toFixed(1).replace('.',',');
+const fmtDurata=m=>m>=60?Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min':m+' min';
+const tra=(lista,da,a)=>lista.filter(x=>{const d=new Date(x.date);return d>=da&&d<a});
+const pesoSettimana=d=>tra(pesi(),lunedi(d),piuGiorni(lunedi(d),7))[0];
+const obiettivoDi=ss=>ss.some(s=>s.day[0]==='e')?2:ss.some(s=>s.day[0]==='d')?3:(S.plan==='2'?2:3);
+const serieDi=s=>Object.values(s.ex).reduce((n,x)=>n+x.length,0);
+
+// Valore confrontabile di una seduta: massimale stimato (Epley) per i carichi, così 6-8 e 8-10 si confrontano;
+// ripetizioni o secondi per il corpo libero; per il pull-up assistito l'assistenza minima (più bassa = meglio).
+function punteggio(id,sets){
+  const k=EX[id].k, conKg=sets.filter(s=>s.kg>0);
+  if(k==='inv')return Math.min(...sets.map(s=>s.kg));
+  if(conKg.length&&k!=='time'&&k!=='min')return Math.max(...conKg.map(s=>s.kg*(1+s.reps/30)));
+  return Math.max(...sets.map(s=>s.reps));
+}
+const meglio=(id,a,b)=>EX[id].k==='inv'?a<b:a>b;
+// 1 migliorato, -1 peggiorato, 0 stabile (differenze sotto l'1% non contano).
+const variazione=(id,c,p)=>Math.abs(c-p)<=Math.abs(p)*0.01?0:meglio(id,c,p)?1:-1;
+function fmtValore(id,v){
+  const k=EX[id].k;
+  if(k==='inv')return fmtKg(v)+' kg di assistenza';
+  if(k==='time')return Math.round(v)+'"';
+  if(k==='min')return Math.round(v)+' min';
+  return Math.round(v)+' kg';
+}
+function previste(s){const day=DAY[s.day];return day?dayEntries(day).reduce((n,{it})=>n+(s.sc&&s.sc[it[0]]?s.sc[it[0]][0]:it[1]),0):0}
+function gruppi(ss){const g={};ss.forEach(s=>Object.keys(s.ex).forEach(id=>{const m=MUSCOLI[id];if(m)g[m]=(g[m]||0)+s.ex[id].length}));return g}
+function confronto(id,cur,prev){
+  const e=EX[id],cs=cur.ex[id];
+  if(!prev)return {id,t:null,txt:'prima volta: '+cs.map(s=>fmtSet(e.k,s)).join(' · ')};
+  const ps=prev.ex[id],c=punteggio(id,cs),p=punteggio(id,ps),t=variazione(id,c,p);
+  const top=x=>Math.max(...x.map(s=>s.kg||0)),rip=x=>x.reduce((n,s)=>n+s.reps,0);
+  let txt;
+  if(e.k==='inv')txt=`assistenza ${fmtKg(p)} → ${fmtKg(c)} kg`;
+  else if(e.k==='time')txt=`${p}" → ${c}"`;
+  else if(e.k==='min')txt=`${p} → ${c} min`;
+  else if(top(cs)>0&&top(cs)!==top(ps))txt=`${fmtKg(top(ps))} → ${fmtKg(top(cs))} kg`;
+  else{const d=rip(cs)-rip(ps);txt=(top(cs)>0?`stesso carico (${fmtKg(top(cs))} kg), `:'')+(d?`${d>0?'+':''}${d} ripetizioni totali`:'stesse ripetizioni')}
+  return {id,t,txt};
+}
+function daAumentare(){
+  const piano=S.plan==='2'?'2':'3',out=[];
+  DAYS.filter(d=>d.plan===piano).forEach(d=>dayEntries(d).forEach(({it})=>{
+    if(out.some(o=>o.id===it[0]))return;const sg=suggest(it[0],it);if(sg.t==='up')out.push({id:it[0],msg:sg.msg})}));
+  return out;
+}
+function settimana(off){
+  const da=piuGiorni(lunedi(new Date()),7*off),a=piuGiorni(da,7),ss=tra(S.sessions,da,a);
+  const ids=ordina([...new Set(ss.flatMap(s=>Object.keys(s.ex)))].filter(id=>EX[id]));
+  return {da,a,off,ss,obiettivo:obiettivoDi(ss),mins:ss.reduce((n,s)=>n+(s.mins||0),0),
+    fatte:ss.reduce((n,s)=>n+serieDi(s),0),previste:ss.reduce((n,s)=>n+previste(s),0),
+    progressi:ids.map(id=>confronto(id,ss.find(s=>s.ex[id]),S.sessions.find(s=>s.ex[id]&&new Date(s.date)<da))),
+    gruppi:gruppi(ss),peso:tra(pesi(),da,a)[0],pesoPrima:pesi().find(w=>new Date(w.date)<da),
+    salire:off===0?daAumentare():[]};
+}
+function mese(off){
+  const ora=new Date(),da=new Date(ora.getFullYear(),ora.getMonth()+off,1),a=new Date(da.getFullYear(),da.getMonth()+1,1);
+  const ss=tra(S.sessions,da,a);
+  // Le settimane del mese sono quelle che iniziano (lunedì) nel mese; contano solo quelle già cominciate.
+  const settimane=[];
+  for(let w=lunedi(da)<da?piuGiorni(lunedi(da),7):lunedi(da);w<a&&w<=ora;w=piuGiorni(w,7)){
+    const sw=tra(S.sessions,w,piuGiorni(w,7));settimane.push({da:w,n:sw.length,obiettivo:obiettivoDi(sw)});
+  }
+  const ids=ordina([...new Set(ss.flatMap(s=>Object.keys(s.ex)))].filter(id=>EX[id]&&(EX[id].g==='comp'||EX[id].g==='uni')));
+  const forza=ids.map(id=>{
+    const l=ss.filter(s=>s.ex[id]);
+    if(l.length<2)return {id,t:null,txt:'una sola seduta nel mese'};
+    const p=punteggio(id,l[l.length-1].ex[id]),c=punteggio(id,l[0].ex[id]),pct=EX[id].k==='load'&&p>0?Math.round((c/p-1)*100):null;
+    return {id,t:variazione(id,c,p),txt:`${fmtValore(id,p)} → ${fmtValore(id,c)}${pct!==null&&pct!==0?` (${pct>0?'+':''}${pct}%)`:''}`};
+  });
+  const g=gruppi(ss),nSett=(a-da)/864e5/7;Object.keys(g).forEach(k=>g[k]=Math.round(g[k]/nSett*10)/10);
+  const att=[];
+  ORDINE.forEach(id=>{
+    const l=S.sessions.filter(s=>s.ex[id]&&new Date(s.date)<a);
+    if(l.length<4||!ss.some(s=>s.ex[id]))return;
+    const best=l.slice(0,3).map(s=>punteggio(id,s.ex[id])).reduce((x,y)=>meglio(id,y,x)?y:x);
+    if(!meglio(id,best,punteggio(id,l[3].ex[id])))att.push(`${EX[id].name}: nessun miglioramento nelle ultime 3 sedute. Controlla tecnica e recupero; se continua, prova un'altra variante o una serie in più.`);
+  });
+  settimane.filter(w=>!w.n).forEach(w=>att.push(`Settimana del ${fmtG(w.da)}: nessuna seduta.`));
+  let consec=0;for(let w=lunedi(a<=ora?piuGiorni(a,-1):ora);tra(S.sessions,w,piuGiorni(w,7)).length;w=piuGiorni(w,-7))consec++;
+  if(consec>=6)att.push(`${consec} settimane di fila di allenamento. Se nelle ultime 6-8 non hai fatto uno scarico, la Guida consiglia una settimana leggera (circa 60% del carico, meno serie).`);
+  return {da,a,off,ss,settimane,complete:settimane.filter(w=>w.n>=w.obiettivo).length,mins:ss.reduce((n,s)=>n+(s.mins||0),0),
+    forza,gruppi:g,pesi:tra(pesi(),da,a).reverse(),att};
+}
+
+const trendHtml=t=>t===null?'<span class="tr">•</span>':`<span class="tr ${t>0?'up':t<0?'down':''}">${t>0?'▲':t<0?'▼':'='}</span>`;
+const trendTxt=t=>t===null?'•':t>0?'▲':t<0?'▼':'=';
+function gruppiHtml(g,titolo,nota){
+  const mx=Math.max(1,...GRUPPI_M.map(k=>g[k]||0));
+  return `<div class="card"><h2>${titolo}</h2>${nota?`<p class="muted rnote">${nota}</p>`:''}${GRUPPI_M.map(k=>`<div class="gbar"><span>${k}</span><div class="track"><i style="width:${(g[k]||0)/mx*100}%"></i></div><b>${fmtNum(g[k]||0)}</b></div>`).join('')}</div>`;
+}
+function pesoHtml(d){
+  const w=d.peso,p=d.pesoPrima,diff=w&&p?w.kg-p.kg:null;
+  const val=w?`<b>${fmtPeso(w.kg)} kg</b>${diff!==null?` <span class="muted">(${diff>0?'+':''}${fmtPeso(diff)} kg dalla pesata precedente)</span>`:''}`:'';
+  if(d.off!==0)return `<div class="card"><h2>Peso</h2>${w?val:'<span class="muted">Nessuna pesata in questa settimana.</span>'}</div>`;
+  return `<div class="card${w?'':' reminder'}"><h2>Pesata della settimana</h2>
+    <p class="${w?'':'muted '}rnote">${w?val:'Pesati come al solito e scrivi qui il valore della bilancia.'}</p>
+    <div class="peso"><div class="fld"><input id="peso" inputmode="decimal" placeholder="es. 78,4" value="${w?fmtPeso(w.kg):''}" aria-label="Peso in kg"><em>kg</em></div>
+    <button class="btn small primary" data-act="wsave">${w?'Aggiorna':'Salva'}</button></div><div id="pmsg" class="muted" style="font-size:13px;margin-top:6px" aria-live="polite"></div></div>`;
+}
+function settimanaHtml(d){
+  const salire=d.salire.length?`<div class="card"><h2>La prossima settimana</h2><p class="muted rnote">Esercizi pronti a salire di carico</p><ul class="rlist block">${d.salire.map(x=>`<li><b>${EX[x.id].name}</b><span>${x.msg}</span></li>`).join('')}</ul></div>`:'';
+  if(!d.ss.length)return pesoHtml(d)+'<div class="card empty">Nessuna seduta in questa settimana.</div>'+salire;
+  const comp=d.previste?Math.min(100,Math.round(d.fatte/d.previste*100)):null;
+  return pesoHtml(d)+`<div class="card"><div class="kpi"><div><b>${d.ss.length}/${d.obiettivo}</b><span>sedute</span></div><div><b>${fmtDurata(d.mins)}</b><span>in palestra</span></div><div><b>${d.fatte}</b><span>serie${comp!==null?` · ${comp}% del previsto`:''}</span></div></div></div>
+    <div class="card"><h2>Progressi</h2><p class="muted rnote">Rispetto alla seduta precedente con lo stesso esercizio</p>
+    <ul class="rlist">${d.progressi.map(p=>`<li><span class="nm">${trendHtml(p.t)} ${EX[p.id].name}</span><span class="val">${p.txt}</span></li>`).join('')}</ul></div>`
+    +gruppiHtml(d.gruppi,'Serie per gruppo muscolare')+salire;
+}
+function meseHtml(d){
+  if(!d.ss.length&&!d.pesi.length)return '<div class="card empty">Nessuna seduta in questo mese.</div>';
+  const mx=Math.max(3,...d.settimane.map(w=>w.n));
+  let h=`<div class="card"><h2>Costanza</h2><div class="kpi"><div><b>${d.ss.length}</b><span>sedute</span></div><div><b>${d.complete}/${d.settimane.length}</b><span>settimane complete</span></div><div><b>${d.ss.length?Math.round(d.mins/d.ss.length):0} min</b><span>durata media</span></div></div>
+    <div class="wbars">${d.settimane.map(w=>`<div class="${w.n>=w.obiettivo?'ok':''}"><b>${w.n}</b><i style="height:${Math.max(3,w.n/mx*56)}px"></i><span>${fmtG(w.da)}</span></div>`).join('')}</div></div>`;
+  if(d.forza.length)h+=`<div class="card"><h2>Forza</h2><p class="muted rnote">Prima e ultima seduta del mese. Per i carichi è il massimale stimato, così si confrontano anche range di ripetizioni diversi.</p>
+    <ul class="rlist">${d.forza.map(f=>`<li><span class="nm">${trendHtml(f.t)} ${EX[f.id].name}</span><span class="val">${f.txt}</span></li>`).join('')}</ul></div>`;
+  if(d.ss.length)h+=gruppiHtml(d.gruppi,'Serie per gruppo muscolare','Media per settimana');
+  if(d.pesi.length){const v=d.pesi.map(w=>w.kg),diff=v[v.length-1]-v[0];
+    h+=`<div class="card"><h2>Peso</h2><div class="prow"><div class="nm">${v.length>1?`${fmtPeso(v[0])} → ${fmtPeso(v[v.length-1])} kg (${diff>0?'+':''}${fmtPeso(diff)})`:'Una pesata nel mese'}</div>${spark(v)}<div class="v">${fmtPeso(v[v.length-1])} kg</div></div></div>`}
+  if(d.att.length)h+=`<div class="card"><h2>Attenzione</h2><div class="stack">${d.att.map(x=>`<div class="att">${x}</div>`).join('')}</div></div>`;
+  return h;
+}
+function titoloReport(d){return rMode==='w'?`${fmtG(d.da)} – ${fmtG(piuGiorni(d.a,-1))}`:(t=>t[0].toUpperCase()+t.slice(1))(d.da.toLocaleDateString('it-IT',{month:'long',year:'numeric'}))}
+function reportHtml(){
+  const d=rMode==='w'?settimana(rOff):mese(rOff);
+  return `<div class="stack"><div class="tabs" role="tablist" style="margin:0"><button role="tab" data-act="rmode" data-m="w" aria-selected="${rMode==='w'}">Settimana</button><button role="tab" data-act="rmode" data-m="m" aria-selected="${rMode==='m'}">Mese</button></div>
+    <div class="rnav"><button class="btn small" data-act="rnav" data-d="-1" aria-label="Periodo precedente">‹</button><h2>${titoloReport(d)}</h2><button class="btn small" data-act="rnav" data-d="1" aria-label="Periodo successivo"${rOff>=0?' disabled':''}>›</button></div>
+    ${rMode==='w'?settimanaHtml(d):meseHtml(d)}
+    <div class="btnrow"><button class="btn small" data-act="rcopy">Copia report come testo</button></div><div id="rmsg" class="muted" style="font-size:14px" aria-live="polite"></div></div>`;
+}
+function reportTesto(){
+  const d=rMode==='w'?settimana(rOff):mese(rOff),r=[(rMode==='w'?'Settimana ':'')+titoloReport(d)];
+  if(rMode==='w'){
+    if(d.peso)r.push(`Peso: ${fmtPeso(d.peso.kg)} kg`);
+    r.push(`Sedute ${d.ss.length}/${d.obiettivo} · ${fmtDurata(d.mins)} · ${d.fatte} serie`);
+    if(d.progressi.length)r.push('','Progressi:',...d.progressi.map(p=>`${trendTxt(p.t)} ${EX[p.id].name}: ${p.txt}`));
+    if(d.ss.length)r.push('','Serie per gruppo: '+GRUPPI_M.filter(k=>d.gruppi[k]).map(k=>`${k} ${d.gruppi[k]}`).join(', '));
+    if(d.salire.length)r.push('','Prossima settimana:',...d.salire.map(x=>`- ${EX[x.id].name}: ${x.msg}`));
+  }else{
+    r.push(`Sedute ${d.ss.length} · settimane complete ${d.complete}/${d.settimane.length} · durata media ${d.ss.length?Math.round(d.mins/d.ss.length):0} min`);
+    if(d.forza.length)r.push('','Forza, prima → ultima seduta (per i carichi: massimale stimato):',...d.forza.map(f=>`${trendTxt(f.t)} ${EX[f.id].name}: ${f.txt}`));
+    if(d.ss.length)r.push('','Serie per gruppo a settimana: '+GRUPPI_M.filter(k=>d.gruppi[k]).map(k=>`${k} ${fmtNum(d.gruppi[k])}`).join(', '));
+    if(d.pesi.length)r.push('',`Peso: ${d.pesi.map(w=>fmtPeso(w.kg)).join(' → ')} kg`);
+    if(d.att.length)r.push('','Attenzione:',...d.att.map(x=>'- '+x));
+  }
+  return r.join('\n');
+}
+function salvaPeso(){
+  const v=parseFloat(String($('#peso').value).replace(',','.'));
+  if(!(v>=30&&v<=300)){$('#pmsg').textContent='Scrivi un peso valido in kg, ad esempio 78,4.';return}
+  const da=lunedi(new Date()),fine=piuGiorni(da,7);
+  S.weights=pesi().filter(w=>{const d=new Date(w.date);return d<da||d>=fine});
+  S.weights.push({date:new Date().toISOString(),kg:Math.round(v*10)/10});
+  S.weights.sort((x,y)=>x.date<y.date?1:x.date>y.date?-1:0);
+  touch();render();
+}
+
 function render(){
   const v=$('#view');
   if(tab==='storico')v.innerHTML=historyHtml();
+  else if(tab==='report')v.innerHTML=reportHtml();
   else if(tab==='guida')v.innerHTML=guideHtml();
   else v.innerHTML=S.current&&!showHome?sessionHtml():homeHtml();
   if(tab==='oggi'&&S.current&&!showHome)updateProgress();
@@ -693,6 +907,12 @@ $('#view').addEventListener('click',e=>{
   const a=b.dataset.act;
   if(a==='home'){showHome=true;render();window.scrollTo(0,0)}
   else if(a==='plan'){S.plan=b.dataset.plan;touch();render()}
+  else if(a==='goreport'){tab='report';rMode='w';rOff=0;syncTabs();render();window.scrollTo(0,0)}
+  else if(a==='rmode'){rMode=b.dataset.m;rOff=0;render()}
+  else if(a==='rnav'){rOff=Math.min(0,rOff+(+b.dataset.d));render()}
+  else if(a==='wsave'){salvaPeso()}
+  else if(a==='rcopy'){const t=reportTesto(),m=$('#rmsg');
+    try{navigator.clipboard.writeText(t).then(()=>{m.textContent='Report copiato: puoi incollarlo dove vuoi.'},()=>{m.textContent='Copia non riuscita su questo browser.'})}catch(err){m.textContent='Copia non riuscita su questo browser.'}}
   else if(a==='start'){startDay(b.dataset.day);showHome=false;render();window.scrollTo(0,0)}
   else if(a==='resume'){showHome=false;render();window.scrollTo(0,0);askWake()}
   else if(a==='chk'){

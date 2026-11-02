@@ -1,5 +1,5 @@
 // Cache per l'uso offline. Cambia VERSION quando aggiorni index.html.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'scheda-' + VERSION;
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'img/pulley.jpg'];
 self.addEventListener('install', e => {
