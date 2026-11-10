@@ -419,6 +419,9 @@ function touch(){lsSet()}
 /* ---------- Logica di progressione ---------- */
 const r05=x=>Math.round(x*2)/2;
 const fmtKg=x=>String(r05(x)).replace('.',',');
+// Scarico di circa l'8% partendo dal carico usato, a passi pari all'incremento dell'esercizio
+// (es. manubri di 2 in 2 kg): così il peso proposto esiste davvero.
+const scendi=(kg,inc)=>Math.max(0,r05(kg-inc*Math.max(1,Math.round(kg*0.08/inc))));
 // Schema [serie, rip min, rip max] con cui l'esercizio è stato fatto in una seduta: salvato, oppure ricavato dal giorno.
 function schemeOf(s,id){
   if(s.sc&&s.sc[id])return s.sc[id];
@@ -462,8 +465,8 @@ function suggest(id,inst){
     const lst=kgs.map(fmtKg).join(' / ')+' kg';
     if(sets.some(s=>(s.kg||0)===ref&&s.reps<plo)){
       if(inv)return {t:'down',msg:'Pesi diversi la volta scorsa ('+lst+') e '+fmtKg(ref)+' kg troppo difficile: porta l\'assistenza a '+fmtKg(ref+e.inc)+' kg.',kg:ref+e.inc};
-      const nk=Math.max(0,r05(ref*0.92));
-      return {t:'down',msg:'Pesi diversi la volta scorsa ('+lst+') e '+fmtKg(ref)+' kg troppo alto: scendi a ≈ '+fmtKg(nk)+' kg.',kg:nk};
+      const nk=scendi(ref,e.inc);
+      return {t:'down',msg:'Pesi diversi la volta scorsa ('+lst+') e '+fmtKg(ref)+' kg troppo alto: scendi a '+fmtKg(nk)+' kg.',kg:nk};
     }
     const hv=Math.max(...kgs);
     const prova=!inv&&hv>ref?' Hai provato '+fmtKg(hv)+' kg: se ti senti pronto, usalo su tutte le serie.':'';
@@ -475,7 +478,7 @@ function suggest(id,inst){
     return {t:'hold',msg:'Resta a '+fmtKg(top)+' kg di assistenza e punta a '+hi+' rip su tutte le serie.',kg:top}
   }
   if(full){const nk=top+e.inc;return {t:'up',msg:'Sali a '+fmtKg(nk)+' kg e riparti da '+lo+' rip.',kg:nk}}
-  if(low){const nk=Math.max(0,r05(top*0.92));return {t:'down',msg:'Carico troppo alto: scendi di circa il 5-10% (≈ '+fmtKg(nk)+' kg).',kg:nk}}
+  if(low){const nk=scendi(top,e.inc);return {t:'down',msg:'Carico troppo alto: scendi a '+fmtKg(nk)+' kg.',kg:nk}}
   return {t:'hold',msg:'Resta a '+fmtKg(top)+' kg e punta a '+hi+' rip su tutte le serie.',kg:top};
 }
 function dayEntries(day){const a=[];day.blocks.forEach((b,bi)=>b.items.forEach((it,ii)=>a.push({it,b,bi,ii})));return a}
