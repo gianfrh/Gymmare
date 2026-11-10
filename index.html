@@ -427,6 +427,31 @@ function rangeScarico(kg,inc){
   const nk=scendi(kg,inc), a=Math.max(0,Math.min(r05(kg*0.9),nk)), b=Math.max(nk,Math.min(r05(kg*0.95),kg-0.5));
   return a===b?fmtKg(a)+' kg':'tra '+fmtKg(a)+' e '+fmtKg(b)+' kg';
 }
+// Aumento consigliato (linee guida NSCA): circa +2,5/5% per la parte alta del corpo, +5/10% per gambe e glutei.
+// Il valore precompilato è il carico usato + l'incremento dell'esercizio, sempre dentro il range.
+const LOWER=new Set(['hipthrust','rdl','bulgarian','frontsquat','slrdl','legcurl']);
+function rangeAumento(id,kg,inc){
+  const [p1,p2]=LOWER.has(id)?[0.05,0.10]:[0.025,0.05], nk=kg+inc;
+  const a=Math.min(nk,Math.max(kg+0.5,r05(kg*(1+p1)))), b=Math.max(nk,r05(kg*(1+p2)));
+  return a===b?fmtKg(a)+' kg':'tra '+fmtKg(a)+' e '+fmtKg(b)+' kg';
+}
+// Esito di una seduta valutato sul suo schema: tutte le serie al limite alto, almeno una sotto il minimo, carico (se uguale su tutte le serie).
+function esito(L,n,lo,hi){
+  const [pn,plo,phi]=L.sc||[n,lo,hi], sets=L.sets, kgs=sets.map(s=>s.kg||0);
+  return {full:sets.length>=pn&&sets.every(s=>s.reps>=phi), low:sets.some(s=>s.reps<plo),
+    kg:kgs.every(k=>k===kgs[0])?kgs[0]:null, reps:sets.reduce((t,s)=>t+s.reps,0)};
+}
+// Ultime k sedute con lo stesso range di ripetizioni, dalla più recente.
+function histFor(id,inst,k){
+  const out=[];
+  for(const s of S.sessions){
+    if(!s.ex||!s.ex[id])continue;
+    const sc=schemeOf(s,id);
+    if(sc&&sc[1]===inst[2]&&sc[2]===inst[3])out.push({date:s.date,sets:s.ex[id],sc});
+    if(out.length>=k)break;
+  }
+  return out;
+}
 // Schema [serie, rip min, rip max] con cui l'esercizio è stato fatto in una seduta: salvato, oppure ricavato dal giorno.
 function schemeOf(s,id){
   if(s.sc&&s.sc[id])return s.sc[id];
@@ -477,13 +502,21 @@ function suggest(id,inst){
     const prova=!inv&&hv>ref?' Hai provato '+fmtKg(hv)+' kg: se ti senti pronto, usalo su tutte le serie.':'';
     return {t:'hold',msg:'Pesi diversi la volta scorsa ('+lst+'): resta a '+fmtKg(ref)+' kg'+(inv?' di assistenza':'')+' su tutte le serie. Sali quando le completi tutte a '+hi+' rip con lo stesso peso.'+prova,kg:ref};
   }
+  // Regole generali: sotto il minimo una volta sola = riprova con lo stesso carico (giornata storta o primo giorno dopo un aumento);
+  // due sedute di fila sotto il minimo con lo stesso carico = scendi. Fermo da 3 sedute senza migliorare le ripetizioni = stallo.
+  const H=histFor(id,inst,3), E=H.map(x=>esito(x,n,lo,hi)), same=x=>x&&x.kg===top;
+  const twice=low&&H[0]&&H[0].date===L.date&&same(E[1])&&E[1].low;
+  const stallo=!full&&!low&&E.length===3&&E.every(x=>same(x)&&!x.full&&!x.low)&&E[0].reps<=E[2].reps;
   if(e.k==='inv'){
     if(full){const nk=Math.max(0,top-e.inc);return {t:'up',msg:'Riduci l\'assistenza a '+fmtKg(nk)+' kg.',kg:nk}}
-    if(low)return {t:'down',msg:'Troppo difficile: porta l\'assistenza a '+fmtKg(top+e.inc)+' kg.',kg:top+e.inc};
+    if(twice||stallo)return {t:'down',msg:(stallo?'Fermo da 3 sedute':'Sotto il minimo per due volte di fila')+': porta l\'assistenza a '+fmtKg(top+e.inc)+' kg.',kg:top+e.inc};
+    if(low)return {t:'hold',msg:'Sotto il minimo questa volta: riprova con '+fmtKg(top)+' kg di assistenza. Se succede di nuovo, aumenta l\'assistenza.',kg:top};
     return {t:'hold',msg:'Resta a '+fmtKg(top)+' kg di assistenza e punta a '+hi+' rip su tutte le serie.',kg:top}
   }
-  if(full){const nk=top+e.inc;return {t:'up',msg:'Sali a '+fmtKg(nk)+' kg e riparti da '+lo+' rip.',kg:nk}}
-  if(low){const nk=scendi(top,e.inc);return {t:'down',msg:'Carico troppo alto: scendi a un peso '+rangeScarico(top,e.inc)+', quello che hai disponibile.',kg:nk}}
+  if(full)return {t:'up',msg:'Sali a un peso '+rangeAumento(id,top,e.inc)+', quello che hai disponibile, e riparti da '+lo+' rip.',kg:top+e.inc};
+  if(twice)return {t:'down',msg:'Sotto il minimo per due volte di fila: scendi a un peso '+rangeScarico(top,e.inc)+', quello che hai disponibile.',kg:scendi(top,e.inc)};
+  if(stallo)return {t:'down',msg:'Fermo a '+fmtKg(top)+' kg da 3 sedute senza migliorare: scendi a un peso '+rangeScarico(top,e.inc)+' e risali, oppure cambia variante. Controlla anche sonno e recupero.',kg:scendi(top,e.inc)};
+  if(low)return {t:'hold',msg:'Sotto il minimo questa volta: riprova con '+fmtKg(top)+' kg. Se succede di nuovo, l\'app ti farà scendere.',kg:top};
   return {t:'hold',msg:'Resta a '+fmtKg(top)+' kg e punta a '+hi+' rip su tutte le serie.',kg:top};
 }
 function dayEntries(day){const a=[];day.blocks.forEach((b,bi)=>b.items.forEach((it,ii)=>a.push({it,b,bi,ii})));return a}
@@ -645,7 +678,7 @@ function sessionHtml(){
 }
 function genHtml(){
   return `<ul>
-  <li><b>Regola base (doppia progressione).</b> Lavora con 1-2 ripetizioni di riserva. Quando completi il limite alto del range su tutte le serie, aumenta il carico (2,5 kg, o 1-2 kg per i manubri) e riparti dal limite basso. Se usi pesi diversi tra le serie, l'app non ti fa salire: ti propone il carico usato nella maggior parte delle serie finché non le completi tutte con lo stesso peso.</li>
+  <li><b>Regola base (doppia progressione).</b> Lavora con 1-2 ripetizioni di riserva. Quando completi il limite alto del range su tutte le serie, aumenta il carico (circa +2,5/5% per la parte alta del corpo, +5/10% per gambe e glutei; l'app ti indica un range e tu scegli il peso disponibile) e riparti dal limite basso. Se una volta resti sotto il limite basso, riprova con lo stesso carico; se succede due volte di fila, scendi. Se resti fermo sullo stesso carico per 3 sedute senza migliorare le ripetizioni, scendi di circa il 10% e risali, oppure cambia variante. Se usi pesi diversi tra le serie, l'app non ti fa salire: ti propone il carico usato nella maggior parte delle serie finché non le completi tutte con lo stesso peso.</li>
   ${Object.values(GROUPS).map(g=>`<li><b>${g.name}.</b> ${g.rule}</li>`).join('')}
   <li><b>Avviso.</b> ${GENERIC_WARN}</li>
   <li><b>Scarico.</b> Ogni 6-8 settimane, una settimana con circa il 60% del carico e meno serie. Anticipalo se i carichi calano o senti fastidi articolari.</li></ul>`;
