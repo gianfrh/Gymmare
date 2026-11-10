@@ -452,6 +452,23 @@ function suggest(id,inst){
   if(e.k==='time'){const m=Math.max(...sets.map(s=>s.reps));return full?{t:'up',msg:'Obiettivo raggiunto: prova '+(m+e.inc)+'" per serie.',kg:''}:{t:'hold',msg:'Punta a '+hi+'" su tutte le serie prima di allungare.',kg:''}}
   if(e.k==='min'){const m=Math.max(...sets.map(s=>s.reps));return full?{t:'up',msg:'Obiettivo raggiunto: prova '+(m+e.inc)+' min o aggiungi inclinazione.',kg:''}:{t:'hold',msg:'Completa '+lo+'-'+hi+' min prima di aumentare.',kg:''}}
   if(e.k==='bw'&&!top)return full?{t:'up',msg:'Aggiungi carico leggero o rallenta l\'esecuzione.',kg:''}:{t:'hold',msg:'Punta a '+hi+' ripetizioni su tutte le serie.',kg:''};
+  // Pesi diversi tra le serie (stanchezza o prova di un carico nuovo): niente aumento.
+  // Riferimento = carico usato nella maggior parte delle serie; a parità, quello più prudente.
+  const kgs=sets.map(s=>s.kg||0);
+  if(kgs.some(k=>k!==kgs[0])){
+    const inv=e.k==='inv', cnt={};
+    kgs.forEach(k=>cnt[k]=(cnt[k]||0)+1);
+    const ref=+Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]||(inv?b-a:a-b))[0];
+    const lst=kgs.map(fmtKg).join(' / ')+' kg';
+    if(sets.some(s=>(s.kg||0)===ref&&s.reps<plo)){
+      if(inv)return {t:'down',msg:'Pesi diversi la volta scorsa ('+lst+') e '+fmtKg(ref)+' kg troppo difficile: porta l\'assistenza a '+fmtKg(ref+e.inc)+' kg.',kg:ref+e.inc};
+      const nk=Math.max(0,r05(ref*0.92));
+      return {t:'down',msg:'Pesi diversi la volta scorsa ('+lst+') e '+fmtKg(ref)+' kg troppo alto: scendi a ≈ '+fmtKg(nk)+' kg.',kg:nk};
+    }
+    const hv=Math.max(...kgs);
+    const prova=!inv&&hv>ref?' Hai provato '+fmtKg(hv)+' kg: se ti senti pronto, usalo su tutte le serie.':'';
+    return {t:'hold',msg:'Pesi diversi la volta scorsa ('+lst+'): resta a '+fmtKg(ref)+' kg'+(inv?' di assistenza':'')+' su tutte le serie. Sali quando le completi tutte a '+hi+' rip con lo stesso peso.'+prova,kg:ref};
+  }
   if(e.k==='inv'){
     if(full){const nk=Math.max(0,top-e.inc);return {t:'up',msg:'Riduci l\'assistenza a '+fmtKg(nk)+' kg.',kg:nk}}
     if(low)return {t:'down',msg:'Troppo difficile: porta l\'assistenza a '+fmtKg(top+e.inc)+' kg.',kg:top+e.inc};
@@ -620,7 +637,7 @@ function sessionHtml(){
 }
 function genHtml(){
   return `<ul>
-  <li><b>Regola base (doppia progressione).</b> Lavora con 1-2 ripetizioni di riserva. Quando completi il limite alto del range su tutte le serie, aumenta il carico (2,5 kg, o 1-2 kg per i manubri) e riparti dal limite basso.</li>
+  <li><b>Regola base (doppia progressione).</b> Lavora con 1-2 ripetizioni di riserva. Quando completi il limite alto del range su tutte le serie, aumenta il carico (2,5 kg, o 1-2 kg per i manubri) e riparti dal limite basso. Se usi pesi diversi tra le serie, l'app non ti fa salire: ti propone il carico usato nella maggior parte delle serie finché non le completi tutte con lo stesso peso.</li>
   ${Object.values(GROUPS).map(g=>`<li><b>${g.name}.</b> ${g.rule}</li>`).join('')}
   <li><b>Avviso.</b> ${GENERIC_WARN}</li>
   <li><b>Scarico.</b> Ogni 6-8 settimane, una settimana con circa il 60% del carico e meno serie. Anticipalo se i carichi calano o senti fastidi articolari.</li></ul>`;
