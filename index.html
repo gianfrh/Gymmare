@@ -414,7 +414,7 @@ let tab='oggi';
 const $=s=>document.querySelector(s);
 function lsGet(){try{return JSON.parse(localStorage.getItem(LS_KEY)||'null')}catch(e){return null}}
 function lsSet(){try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}}
-function touch(){lsSet()}
+function touch(){lsSet();if(!S.current)syncSoon()}
 
 /* ---------- Logica di progressione ---------- */
 const r05=x=>Math.round(x*2)/2;
@@ -698,12 +698,49 @@ function spark(vals){
   const l=pts[pts.length-1];
   return `<svg viewBox="0 0 96 28" role="img" aria-label="andamento"><polyline points="${pts.map(p=>p.map(x=>x.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${l[0].toFixed(1)}" cy="${l[1].toFixed(1)}" r="3" fill="var(--accent)"/></svg>`;
 }
-function backupHtml(){return `<div class="card gen"><h2>Backup dati</h2><p class="muted" style="margin:0 0 10px">Esporta lo storico per spostarlo su un altro dispositivo o su un'altra versione dell'app. Importa per unirlo a quello già presente: le sedute doppie vengono saltate.</p>
+function backupHtml(){return syncHtml()+`<div class="card gen"><h2>Backup dati</h2><p class="muted" style="margin:0 0 10px">Esporta lo storico per spostarlo su un altro dispositivo o su un'altra versione dell'app. Importa per unirlo a quello già presente: le sedute doppie vengono saltate.</p>
   <div class="btnrow"><button class="btn small" data-act="exp">Esporta (copia)</button><button class="btn small" data-act="dl">Scarica file</button><label class="btn small" style="display:inline-block">Importa da file<input type="file" accept=".json,application/json,text/plain" data-act="impfile" hidden></label></div>
   <textarea id="bk" rows="4" placeholder="Incolla qui un backup e premi Importa testo" style="width:100%;margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);padding:8px 10px;font:13px/1.35 ui-monospace,monospace"></textarea>
   <div class="btnrow" style="margin-top:8px"><button class="btn small primary" data-act="imp">Importa testo</button></div><div id="bkmsg" class="muted" style="font-size:14px;margin-top:6px" aria-live="polite"></div></div>`}
 const bkData=()=>JSON.stringify({app:'scheda-allenamento',v:1,plan:S.plan||'3',sessions:S.sessions,weights:S.weights||[]});
 function bkMsg(t){const m=$('#bkmsg');if(m)m.textContent=t}
+
+/* ---------- Sincronizzazione su GitHub ----------
+   Lo storico (stesso formato del backup) viene salvato in storico.json di un repository privato.
+   Repository e token restano solo su questo dispositivo e non finiscono nel backup. */
+const GH_KEY='gymmare-sync', GH_FILE='storico.json';
+function ghCfg(){try{return JSON.parse(localStorage.getItem(GH_KEY)||'null')||{}}catch(e){return {}}}
+function ghSet(c){try{localStorage.setItem(GH_KEY,JSON.stringify(c))}catch(e){}}
+function hashStr(t){let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return String(h)+':'+t.length}
+let syncT=null, syncing=false;
+function syncSoon(){clearTimeout(syncT);syncT=setTimeout(()=>syncGh(false),3000)}
+function syncMsg(t){const m=$('#syncmsg');if(m)m.textContent=t}
+function syncStato(){const c=ghCfg();if(!c.repo||!c.token)return 'Non configurata.';
+  return c.err?'Ultimo tentativo non riuscito: '+c.err:c.last?'Ultima sincronizzazione: '+new Date(c.last).toLocaleString('it-IT',{dateStyle:'short',timeStyle:'short'}):'Configurata, mai sincronizzata.'}
+async function syncGh(manual){
+  const c=ghCfg();if(!c.repo||!c.token||syncing||!navigator.onLine&&!manual)return;
+  const data=bkData(),h=hashStr(data);
+  if(!manual&&c.hash===h)return;
+  syncing=true;if(manual)syncMsg('Sincronizzazione in corso...');
+  const url='https://api.github.com/repos/'+c.repo+'/contents/'+GH_FILE,
+    hd={Authorization:'Bearer '+c.token,Accept:'application/vnd.github+json'};
+  try{
+    for(let tent=0;tent<2;tent++){
+      let sha;const g=await fetch(url,{headers:hd,cache:'no-store'});
+      if(g.ok)sha=(await g.json()).sha;else if(g.status!==404)throw new Error(g.status===401?'token non valido o scaduto':g.status===403?'il token non ha accesso in scrittura al repository':'errore GitHub '+g.status);
+      const r=await fetch(url,{method:'PUT',headers:hd,body:JSON.stringify({message:'Storico aggiornato '+new Date().toISOString().slice(0,16).replace('T',' '),content:btoa(unescape(encodeURIComponent(data))),sha})});
+      if(r.ok){Object.assign(c,{hash:h,last:Date.now(),err:''});ghSet(c);if(manual)syncMsg('Fatto. '+syncStato());return}
+      if(r.status!==409&&r.status!==422)throw new Error(r.status===404?'repository non trovato: controlla il nome e i permessi del token':'errore GitHub '+r.status);
+    }
+    throw new Error('conflitto sul file, riprova');
+  }catch(e){c.err=e.message||'rete non disponibile';ghSet(c);if(manual)syncMsg('Non riuscita: '+c.err)}
+  finally{syncing=false}
+}
+function syncHtml(){const c=ghCfg();return `<div class="card gen"><h2>Sincronizzazione</h2><p class="muted" style="margin:0 0 10px">Salva automaticamente lo storico in un repository GitHub privato a fine seduta, così può essere copiato su Notion. Repository e token restano solo su questo dispositivo.</p>
+  <input id="ghrepo" placeholder="utente/repository" value="${c.repo||''}" autocapitalize="off" autocorrect="off" spellcheck="false" style="width:100%;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);padding:8px 10px;font:inherit;font-size:14px;margin-bottom:8px">
+  <input id="ghtoken" type="password" placeholder="${c.token?'Token salvato (lascia vuoto per non cambiarlo)':'Token GitHub (github_pat_...)'}" autocomplete="off" style="width:100%;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);padding:8px 10px;font:inherit;font-size:14px">
+  <div class="btnrow" style="margin-top:8px"><button class="btn small primary" data-act="ghsave">Salva e sincronizza</button>${c.token?'<button class="btn small" data-act="ghnow">Sincronizza ora</button><button class="btn small" data-act="ghoff">Disattiva</button>':''}</div>
+  <div id="syncmsg" class="muted" style="font-size:14px;margin-top:6px" aria-live="polite">${syncStato()}</div></div>`}
 function doImport(txt){
   let d;try{d=JSON.parse(String(txt).trim())}catch(e){bkMsg('Testo non valido: assicurati di aver copiato tutto il backup.');return}
   if(!d||!Array.isArray(d.sessions)){bkMsg('Backup non riconosciuto.');return}
@@ -990,6 +1027,12 @@ $('#view').addEventListener('click',e=>{
     try{navigator.clipboard.writeText(t).then(()=>bkMsg('Backup copiato negli appunti ('+S.sessions.length+' sedute). Incollalo nella nuova app.'),()=>bkMsg('Copia il testo nel riquadro: tieni premuto, Seleziona tutto, Copia.'))}catch(err){bkMsg('Copia il testo nel riquadro: tieni premuto, Seleziona tutto, Copia.')}}
   else if(a==='dl'){try{const u=URL.createObjectURL(new Blob([bkData()],{type:'application/json'})),l=document.createElement('a');l.href=u;l.download='scheda-allenamento-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);bkMsg('Se il download non parte, usa Esporta (copia).')}catch(err){bkMsg('Download non disponibile qui: usa Esporta (copia).')}}
   else if(a==='imp'){doImport($('#bk').value)}
+  else if(a==='ghsave'){const c=ghCfg(),r=$('#ghrepo').value.trim().replace(/^https?:\/\/github\.com\//,'').replace(/\.git$|\/$/g,''),t=$('#ghtoken').value.trim();
+    if(!/^[\w.-]+\/[\w.-]+$/.test(r)){syncMsg('Scrivi il repository come utente/nome.');return}
+    if(!t&&!c.token){syncMsg('Inserisci il token.');return}
+    ghSet({repo:r,token:t||c.token});syncGh(true).then(()=>{if(!ghCfg().err)render()})}
+  else if(a==='ghnow'){syncGh(true)}
+  else if(a==='ghoff'){try{localStorage.removeItem(GH_KEY)}catch(e){}render()}
   else if(a==='del'){
     if(openDel===b.dataset.id){S.sessions=S.sessions.filter(s=>s.id!==b.dataset.id);openDel=null;touch();render()}
     else{openDel=b.dataset.id;b.textContent='Conferma eliminazione'}
@@ -998,6 +1041,9 @@ $('#view').addEventListener('click',e=>{
 
 /* ---------- Avvio ---------- */
 (function(){const l=lsGet();if(l&&l.sessions)S=l;if(S.current)delete S.current.tEnd})();
+setTimeout(()=>syncGh(false),2000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!S.current)syncGh(false)});
+window.addEventListener('online',()=>syncGh(false));
 render();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
