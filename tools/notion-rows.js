@@ -4,7 +4,7 @@
 //
 // Uso: node tools/notion-rows.js <storico.json> [--da AAAA-MM-GG]
 // Stampa un array JSON con una riga per seduta (dalla più vecchia), con le proprietà
-// già nei nomi delle colonne Notion. Esercizi e giorni sono letti da index.html.
+// già nei nomi delle colonne Notion; il campo _icona è l'emoji della pagina. Esercizi e giorni sono letti da index.html.
 'use strict';
 const fs = require('fs'), path = require('path');
 
@@ -26,6 +26,8 @@ const FOCUS = {
   e1: ['Glutei', 'Petto', 'Schiena', 'Spalle'],
   e2: ['Gambe', 'Spalle', 'Schiena', 'Core'],
 };
+// Icona della pagina per giorno, come nelle righe già presenti (va passata a parte, non è una proprietà).
+const ICONA = { d1: '💪', d2: '🦵', d3: '🔥', e1: '⚡', e2: '⚡' };
 const PIANO = { '3': 'Settimana da 3 giorni', '2': 'Settimana da 2 giorni' };
 
 const num = x => String(Math.round(x * 100) / 100).replace('.', ',');
@@ -57,11 +59,13 @@ for (const s of sessioni) {
   const data = giorno(s.date);
   if (da && data < da) continue;
   righe.push({
+    '_icona': ICONA[s.day] || '🏋️',
     'ID seduta': s.id,
     'Allenamento': d.title || s.day,
     'date:Data:start': data,
     'date:Data:is_datetime': 0,
-    'Durata (min)': s.mins > 0 ? s.mins : null,
+    // Oltre 3 ore la seduta è rimasta aperta per errore: durata non attendibile.
+    'Durata (min)': s.mins > 0 && s.mins <= 180 ? s.mins : null,
     'Piano': PIANO[d.plan || '3'],
     'Focus': FOCUS[s.day] || [],
     'Esercizi': ids.map(id => EX[id].name),
